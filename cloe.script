@@ -1,0 +1,56 @@
+import Debug;
+object blockchain = create("Blockchain", "rinkeby");
+
+function run(object data, object tags, string asset){
+
+	int containerId = 1;
+
+	boolean createContainer = false;
+	boolean getContainers = false;
+	boolean checkDoorsOpen = true;
+	boolean changeDoors = false;
+
+	blockchain.loadWallet("sensorOwner");
+	blockchain.loadContract("ContainerHub");
+
+	if (createContainer) {
+	    string txHash = blockchain.invokeCustom("createContainer", [ containerId ], null, 300000, null);
+	    Debug.log("A container contract is being created with transaction hash " + txHash);
+	}
+
+	if (getContainers) {
+	    object containers = blockchain.invoke("getMyContainers", []);
+	    object ids = containers["myIds"];
+	    object addresses = containers["myAddresses"];
+
+	    foreach (id in ids) {
+	        Debug.log("A container contract for container " + ids[id] + " is deployed at " + addresses[id]);
+	    }
+	}
+
+	if (checkDoorsOpen) {
+	    object containers = blockchain.invoke("getMyContainers", []);
+	    object ids = containers["myIds"];
+	    boolean doorsOpen;
+	    foreach (id in ids) {
+	        doorsOpen = blockchain.invoke("areDoorsOpen", [ ids[id] ]);
+	        if (doorsOpen) {
+	            Debug.log("Doors for container " + ids[id] + " are open");
+	        } else {
+	            Debug.log("Doors for container " + ids[id] + " are closed");
+	        }
+	    }
+	}
+
+	if (changeDoors) {
+	    boolean doorsOpen = blockchain.invoke("areDoorsOpen", [ containerId ]);
+	    if (doorsOpen) { # close doors
+	        string txHash = blockchain.invoke("setDoorsOpen", [ containerId, false ]);
+	        Debug.log("Closing doors for container " + containerId + " in transaction " + txHash);
+	    } else { # open doors
+	        string txHash = blockchain.invoke("setDoorsOpen", [ containerId, true ]);
+	        Debug.log("Opening doors for container " + containerId + " in transaction " + txHash);
+	    }
+	}
+
+}

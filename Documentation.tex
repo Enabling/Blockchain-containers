@@ -1,0 +1,313 @@
+\documentclass[12pt]{article}
+%\usepackage{fullpage}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[pdftex,hidelinks,
+            pdfauthor={Maarten Dhondt},
+            pdftitle={Proximus: Smart Contracts on an Ethereum Blockchain},
+            pdfsubject={Smart Contracts on an Ethereum Blockchain},
+            pdfkeywords={Chainport Hackathon EnCo Blockchain Ethereum},
+            pdfproducer={LaTeX},
+            pdfcreator={pdflatex}]{hyperref}
+\usepackage{authblk}
+\usepackage{listings}
+\usepackage{siunitx}
+\usepackage[margin=1in]{geometry}
+
+\usepackage{listings, xcolor}
+
+\title{\vspace{-3cm}Smart Contracts on an Ethereum Blockchain\\\href{https://www.enco.io}{EnCo, Proximus}}
+\author[1]{\href{mailto:maarten.dhondt@realdolmen.com}{Dhondt Maarten}}
+\author[2]{\href{mailto:frederic.mottiat@proximus.com}{Mottiat Frederic}}
+\author[2]{\href{mailto:julien.marlair@proximus.com}{Marlair Julien}}
+\affil[1]{Blockchain Developer, Realdolmen}
+\affil[2]{Business Innovation \& Development Manager, Proximus}
+\date{February 2019}
+
+\definecolor{verylightgray}{rgb}{.97,.97,.97}
+
+\lstdefinelanguage{Solidity}{
+	keywords=[1]{anonymous, assembly, assert, balance, break, call, callcode, case, catch, class, constant, continue, contract, debugger, default, delegatecall, delete, do, else, emit, event, export, external, false, finally, for, function, gas, if, implements, import, in, indexed, instanceof, interface, internal, is, length, library, log0, log1, log2, log3, log4, memory, modifier, new, payable, pragma, private, protected, public, pure, push, require, return, returns, revert, selfdestruct, send, storage, struct, suicide, super, switch, then, this, throw, transfer, true, try, typeof, using, value, view, while, with, addmod, ecrecover, keccak256, mulmod, ripemd160, sha256, sha3}, % generic keywords including crypto operations
+	keywordstyle=[1]\color{blue}\bfseries,
+	keywords=[2]{address, bool, byte, bytes, bytes1, bytes2, bytes3, bytes4, bytes5, bytes6, bytes7, bytes8, bytes9, bytes10, bytes11, bytes12, bytes13, bytes14, bytes15, bytes16, bytes17, bytes18, bytes19, bytes20, bytes21, bytes22, bytes23, bytes24, bytes25, bytes26, bytes27, bytes28, bytes29, bytes30, bytes31, bytes32, enum, int, int8, int16, int24, int32, int40, int48, int56, int64, int72, int80, int88, int96, int104, int112, int120, int128, int136, int144, int152, int160, int168, int176, int184, int192, int200, int208, int216, int224, int232, int240, int248, int256, mapping, string, uint, uint8, uint16, uint24, uint32, uint40, uint48, uint56, uint64, uint72, uint80, uint88, uint96, uint104, uint112, uint120, uint128, uint136, uint144, uint152, uint160, uint168, uint176, uint184, uint192, uint200, uint208, uint216, uint224, uint232, uint240, uint248, uint256, var, void, ether, finney, szabo, wei, days, hours, minutes, seconds, weeks, years},	% types; money and time units
+	keywordstyle=[2]\color{teal}\bfseries,
+	keywords=[3]{block, blockhash, coinbase, difficulty, gaslimit, number, timestamp, msg, data, gas, sender, sig, value, now, tx, gasprice, origin},	% environment variables
+	keywordstyle=[3]\color{violet}\bfseries,
+	identifierstyle=\color{black},
+	sensitive=false,
+	comment=[l]{//},
+	morecomment=[s]{/*}{*/},
+	commentstyle=\color{gray}\ttfamily,
+	stringstyle=\color{red}\ttfamily,
+	morestring=[b]',
+	morestring=[b]"
+}
+\lstset{
+	backgroundcolor=\color{verylightgray},
+	extendedchars=true,
+	showstringspaces=false,
+	showspaces=false,
+	tabsize=2,
+	breaklines=true,
+	showtabs=false,
+	captionpos=b,
+	basicstyle=\ttfamily,
+	basewidth=0.5em
+}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\section{Smart Contracts}
+Proximus has developed smart contracts to monitor shipping containers. The smart contracts are written in \href{https://solidity.readthedocs.io/en/latest/}{\emph{Solidity}}, the most popular smart contract language that compiles to bytecode for the Ethereum Virtual Machine.
+
+The idea is that a sensor (pressure, motion, \ldots) notices a change in the environment of a container and registers that occurrence on a blockchain. Each time a sensor is made to monitor a container, a new smart contract will be created that contains the state the of the container. The state of all containers will be visible by everyone with access to the blockchain; but changing the blockchain for a specific container will only be possible by the exact sensor that created the smart contract for that container.
+
+The main contract is the \texttt{ContainerHub} contract. It allows to create new \texttt{Container} smart contracts. The \texttt{ContainerHub} also keeps track of which containers are linked to which sensors by using a container id. So one sensor can be reused to be linked to multiple container ids and thus multiple \texttt{Container} smart contracts.
+
+\begin{lstlisting}[frame=single,basicstyle=\tiny,language=Solidity]
+pragma solidity ^0.4.24;
+
+contract Container {
+
+    uint256 _id;
+    bool    _doorsOpen = false;
+    bool    _movement = false;
+    address _owner;
+
+    event DoorsOpened();
+    event DoorsClosed();
+
+    constructor(uint256 id) public {
+        _id = id;
+        _owner = tx.origin;
+    }
+
+    modifier onlyOwner() {
+        require(tx.origin == _owner);
+        _;
+    }
+
+    function getId() public view returns (uint256 id) {
+        return _id;
+    }
+
+    function areDoorsOpen() public view returns (bool doorsOpen) {
+        return _doorsOpen;
+    }
+
+    function setDoorsOpen(bool doorsOpen) public onlyOwner {
+        _doorsOpen = doorsOpen;
+        if (doorsOpen) {
+            emit DoorsOpened();
+        } else {
+            emit DoorsClosed();
+        }
+    }
+
+    function movementDetected() public onlyOwner {
+        _movement = true;
+    }
+
+    function hasMovementBeenDetected() public view returns (bool movementDetected) {
+        return _movement;
+    }
+}
+\end{lstlisting}
+\vspace{.5cm}
+The address/wallet that calls the constructor of the \texttt{Container} is the owner of it. That's the only address that will be able to make changes to the state of the container. To make it easier to create and manage a \texttt{Container}, the \texttt{ContainerHub} can be used. That way containers can be identified by an integer instead of its Ethereum address.
+\vspace{.3cm}
+\begin{lstlisting}[frame=single,basicstyle=\tiny,language=Solidity]
+pragma solidity ^0.4.24;
+
+import "./Container.sol";
+
+contract ContainerHub {
+
+    mapping(address => uint256[]) containerIds;
+    mapping(address => mapping (uint256 => Container)) containers;
+
+    event ContainerCreated(address indexed owner, uint256 indexed id, address containerAddress);
+
+    function createContainer(uint256 id) public {
+        Container container = new Container(id);
+        containers[msg.sender][id] = container;
+        containerIds[msg.sender].push(id);
+        emit ContainerCreated(msg.sender, id, container);
+    }
+
+    function getMyContainers() public view returns (uint256[] myIds, address[] myAddresses) {
+        return getContainersFor(msg.sender);
+    }
+
+    function getContainersFor(address owner) public view returns (uint256[] myIds, address[] myAddresses) {
+        uint256[] memory ids = containerIds[owner];
+        address[] memory addresses = new address[](ids.length);
+        for (uint i = 0; i < ids.length; i++) {
+            addresses[i] = containers[owner][ids[i]];
+        }
+        return (ids, addresses);
+    }
+
+    function getMyContainer(uint256 id) public view returns (address myContainer) {
+        return containers[msg.sender][id];
+    }
+
+    function setDoorsOpen(uint256 id, bool doors) public {
+        Container(containers[msg.sender][id]).setDoorsOpen(doors);
+    }
+
+    function setDoorsOpen(address containerContract, bool doors) public {
+        Container(containerContract).setDoorsOpen(doors);
+    }
+
+    function areDoorsOpen(uint256 id) public view returns (bool doorsOpen) {
+        return Container(containers[msg.sender][id]).areDoorsOpen();
+    }
+
+    function areDoorsOpen(address containerContract) public view returns (bool doorsOpen) {
+        return Container(containerContract).areDoorsOpen();
+    }
+}
+\end{lstlisting}
+
+\section{EnCo Blockchain Management API}
+
+The \texttt{ContainerHub} which will create the \texttt{Container} contracts for you, has already been deployed to the EnCo blockchain called \texttt{enco\_shared}. What's left is creating a wallet/address for a sensor to be able to invoke the functions of the \texttt{ContainerHub} contract. Because Ethereum blockchains need funds to operate, we will also need to request funds.
+
+\begin{enumerate}
+	\item Creating a wallet
+		\begin{lstlisting}[frame=single,basicstyle=\tiny]
+$ curl -sH "Authorization: Bearer aed6fdf1c14a94f86c12a8a55ec4351d" -H "Content-Type: application/json" -X POST https://api.enco.io/bc-mgmt/1.0.0/chains/enco_shared/wallets?name=mySensor
+
+{"name":"mySensor","address":"0x0c92784C35c52Cf278A36a2DF26D968f15D7f041"}
+		\end{lstlisting}
+		This created a new wallet for you with name ``mySensor''. It can be found on the blockchain at address \texttt{0x0c92784C35c52Cf278A36a2DF26D968f15D7f041}. In the next API calls you can use the name ``mySensor'' and the address \texttt{0x0c92784C35c52Cf278A3 6a2DF26D968f15D7f041} interchangeably.
+	\item Requesting funds for the wallet (can only be done once every 5 minutes, but the requested funds are more than enough for a while)
+		\begin{lstlisting}[frame=single,basicstyle=\tiny]
+$ curl -sH "Authorization: Bearer aed6fdf1c14a94f86c12a8a55ec4351d" -H "Content-Type: application/json" -X GET https://api.enco.io/bc-mgmt/1.0.0/chains/enco_shared/faucet/mySensor?amount=5
+
+{"transactionHash":"0x5f22c08171f309c7b7b4577019d5178c7f490cc237cc0c3da330447b9b0777a3","fromAddress":"0x3Bd9400C0a27c2cB6D5cF32e376Af7Ef5Fe9C929","toAddress":"0x0c92784C35c52Cf278A36a2DF26D968f15D7f041","value":5000000000000000000,"nonce":12,"gasLimit":21000,"gasPrice":22000000000}
+		\end{lstlisting}
+		This shows a transaction of \num{5000000000000000000} WEI (= 5 ETHER) made from the \texttt{enco\_shared} faucet towards your (new) wallet.
+\end{enumerate}
+
+\section{Invoking the Smart Contracts}
+\begin{enumerate}
+	\item Invoke the function \texttt{getMyContainers} on the \texttt{ContainerHub} contract to see all the containers linked to our (new) wallet.
+		\begin{lstlisting}[frame=single,basicstyle=\tiny]
+$ curl -sH "Authorization: Bearer aed6fdf1c14a94f86c12a8a55ec4351d" -H "Content-Type: application/json" -d "{}" -X POST https://api.enco.io/bc-mgmt/1.0.0/chains/enco_shared/contracts/ContainerHub/getMyContainers?walletIdentifier=mySensor
+
+{"myIds":[],"myAddresses":[]}
+		\end{lstlisting}
+		This (correctly) shows that our sensor does not have any linked containers yet.
+	\item Creating a container smart contract based on an integer id. For large transactions (such as the creation of a new \texttt{Container} smart contract), a higher gas limit is needed than the EnCo default of \num{200000}. That's why we provide it with as a query param.
+		\begin{lstlisting}[frame=single,basicstyle=\tiny]
+$ curl -sH "Authorization: Bearer aed6fdf1c14a94f86c12a8a55ec4351d" -H "Content-Type: application/json" -d '{"id" : 1991}' -X POST 'https://api.enco.io/bc-mgmt/1.0.0/chains/enco_shared/contracts/ContainerHub/createContainer?walletIdentifier=mySensor&gasLimit=500000'
+
+{"transactionHash":"0x38211bd14ee2d6f9a70ad81a96bc280e87ba6abf6bc68034d25ac6f146586513"}
+		\end{lstlisting}
+		The hash of the transaction which wrote (the new \texttt{Container} smart contract) to the blockchain is returned.
+	\item Reinvoking the \texttt{getMyContainers} function should now return the id and the respectively corresponding address of the container contract that was created.
+		\begin{lstlisting}[frame=single,basicstyle=\tiny]
+$ curl -sH "Authorization: Bearer aed6fdf1c14a94f86c12a8a55ec4351d" -H "Content-Type: application/json" -d "{}" -X POST https://api.enco.io/bc-mgmt/1.0.0/chains/enco_shared/contracts/ContainerHub/getMyContainers?walletIdentifier=mySensor
+
+{"myIds":[1991],"myAddresses":["0x1984564c678a5ec0ee0c70b4d04a906dc9bf46e3"]}
+		\end{lstlisting}
+		Now we see that we have a \texttt{Container} contract at address \texttt{0x1984564c678a5ec0ee0c70 b4d04a906dc9bf46e3} for container with id 1991. After creating a few more containers, the output could look like:
+		\begin{lstlisting}[frame=single,basicstyle=\tiny]
+$ curl -sH "Authorization: Bearer aed6fdf1c14a94f86c12a8a55ec4351d" -H "Content-Type: application/json" -d "{}" -X POST https://api.enco.io/bc-mgmt/1.0.0/chains/enco_shared/contracts/ContainerHub/getMyContainers?walletIdentifier=mySensor
+
+{"myIds":[1991,5684,2563],"myAddresses":["0x1984564c678a5ec0ee0c70b4d04a906dc9bf46e3","0x311b0ca1c53d19406527a3190ef59f4fbdd8c8e8","0x4672d379e72158887f7592a072b1d6eb8f23ccc7"]}
+		\end{lstlisting}
+	\item Marking the doors of a container as opened:
+		\begin{lstlisting}[frame=single,basicstyle=\tiny]
+$ curl -sH "Authorization: Bearer aed6fdf1c14a94f86c12a8a55ec4351d" -H "Content-Type: application/json" -d '{"id": 1991, "doors": true}' -X POST https://api.enco.io/bc-mgmt/1.0.0/chains/enco_shared/contracts/ContainerHub/setDoorsOpen?walletIdentifier=mySensor
+
+{"transactionHash":"0x8f2dd8e44d006edd09d8c1450ba84c016c6ff3cc18cdd74aa07e27c8cf21703c"}
+		\end{lstlisting}
+	\item Checking if the doors of a container are open:
+		\begin{lstlisting}[frame=single,basicstyle=\tiny]
+$ curl -sH "Authorization: Bearer aed6fdf1c14a94f86c12a8a55ec4351d" -H "Content-Type: application/json" -d '{"id": 1991}' -X POST https://api.enco.io/bc-mgmt/1.0.0/chains/enco_shared/contracts/ContainerHub/areDoorsOpen?walletIdentifier=mySensor
+
+{"doorsOpen":true}
+		\end{lstlisting}
+	\item Marking a container with a detected movement:
+		\begin{lstlisting}[frame=single,basicstyle=\tiny]
+$ curl -sH "Authorization: Bearer aed6fdf1c14a94f86c12a8a55ec4351d" -H "Content-Type: application/json" -d '{"id": 1991}' -X POST https://api.enco.io/bc-mgmt/1.0.0/chains/enco_shared/contracts/ContainerHub/movementDetected?walletIdentifier=mySensor
+
+{"transactionHash":"0xdc68b7a5e9bf42770125a8355776a7aafb88116d3e2ab6c7413b0635b6ea565c"}
+		\end{lstlisting}
+	\item Checking if a container was moved:
+		\begin{lstlisting}[frame=single,basicstyle=\tiny]
+$ curl -sH "Authorization: Bearer aed6fdf1c14a94f86c12a8a55ec4351d" -H "Content-Type: application/json" -d '{"id": 1991}' -X POST https://api.enco.io/bc-mgmt/1.0.0/chains/enco_shared/contracts/ContainerHub/hasMovementBeenDetected?walletIdentifier=mySensor
+
+{"movementDetected":true}
+		\end{lstlisting}\thispagestyle{empty}
+\end{enumerate}
+
+\section{CloudEngine Script to Interact with Blockchain}
+	
+	\begin{lstlisting}[frame=single,basicstyle=\tiny]
+import Debug;
+object blockchain = create("Blockchain", "rinkeby");
+
+function run(object data, object tags, string asset){
+
+	int containerId = 1991;
+
+	boolean createContainer = false;
+	boolean getContainers = false;
+	boolean checkDoorsOpen = true;
+	boolean changeDoors = false;
+
+	blockchain.loadWallet("sensorOwner");
+	blockchain.loadContract("ContainerHub");
+
+	if (createContainer) {
+	    string txHash = blockchain.invokeCustom("createContainer", [ containerId ], null, 500000, null);
+	    Debug.log("A container contract is being created with transaction hash " + txHash);
+	}
+
+	if (getContainers) {
+	    object containers = blockchain.invoke("getMyContainers", []);
+	    object ids = containers["myIds"];
+	    object addresses = containers["myAddresses"];
+
+	    foreach (id in ids) {
+	        Debug.log("A container contract for container " + ids[id] + " is deployed at " + addresses[id]);
+	    }
+	}
+
+	if (checkDoorsOpen) {
+	    object containers = blockchain.invoke("getMyContainers", []);
+	    object ids = containers["myIds"];
+	    boolean doorsOpen;
+	    foreach (id in ids) {
+	        doorsOpen = blockchain.invoke("areDoorsOpen", [ ids[id] ]);
+	        if (doorsOpen) {
+	            Debug.log("Doors for container " + ids[id] + " are open");
+	        } else {
+	            Debug.log("Doors for container " + ids[id] + " are closed");
+	        }
+	    }
+	}
+
+	if (changeDoors) {
+	    boolean doorsOpen = blockchain.invoke("areDoorsOpen", [ containerId ]);
+	    if (doorsOpen) { # close doors
+	        string txHash = blockchain.invoke("setDoorsOpen", [ containerId, false ]);
+	        Debug.log("Closing doors for container " + containerId + " in transaction " + txHash);
+	    } else { # open doors
+	        string txHash = blockchain.invoke("setDoorsOpen", [ containerId, true ]);
+	        Debug.log("Opening doors for container " + containerId + " in transaction " + txHash);
+	    }
+	}
+
+}
+	\end{lstlisting}
+
+\end{document}
