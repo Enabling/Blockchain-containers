@@ -1,0 +1,55 @@
+object debug = create("Debug");
+object json = create("Json");
+object array = create("Array");
+object blockchain = create("Blockchain", "enco_shared");
+
+
+function run(object data, object tags, string asset){
+    # If script is triggered by HTTP input with HTTP & IOT tags
+    if( (array.containsAll(tags, ["HTTP", "IOT"])) && asset == "cloudengine" ) {
+        # Parse incoming message
+        object incomingJson = json.parse(data["BODY"]);
+        
+        # Check the incoming payload content
+        debug.log(incomingJson);
+        
+        # Extract containerid from incoming payload
+        int containerId = incomingJson.get("containerid");
+        object containerIdArray = [containerId];
+        
+        # Load blockchain contracts
+        blockchain.loadWallet("<YOUR_WALLET_NAME>");
+	    blockchain.loadContract("<YOUR_CONTRACT_NAME");
+	    
+	    # Check if our containerId is already created
+        object containers = blockchain.invoke("getMyContainers", []);
+	    object ids = containers["myIds"];
+	    object addresses = containers["myAddresses"];
+	    if(array.containsAll(ids, containerIdArray) == false){
+        # containerId does not exist, so create container on the chain
+	        string txCrHash = blockchain.invokeCustom("createContainer", [ containerId ], null, 500000, null);
+	        debug.log("New container "+containerId+" created with transaction "+txCrHash);
+	    }
+	    
+	    # Check door sensor value, if present in the incoming message 
+        if (incomingJson.has("door_sensor_value")) {
+        # Record door status change for containerId
+        # door_sensor_value false means doors are open
+            if (incomingJson.get("door_sensor_value")==false) {
+                string txHash = blockchain.invoke("setDoorsOpen", [ containerId, true ]);
+	            debug.log("Opening doors for container " + containerId + " in transaction " + txHash);
+	            object sms = create("SMS", "<YOUR_PHONE_NUMBER>", "Doors open on Container "+containerId);
+                sms.send();
+            } else {
+              string txHash = blockchain.invoke("setDoorsOpen", [ containerId, false ]);
+	          debug.log("Closing doors for container " + containerId + " in transaction " + txHash);
+            }
+        } else if (incomingJson.has("x_motion")) {
+        # Record movement detection for containerId
+            string txHash = blockchain.invoke("movementDetected", [ containerId ]);
+            debug.log("Movement detected for container " + containerId + " logged in transaction " + txHash);
+            object sms = create("SMS", "<YOUR_PHONE_NUMBER>", "Container "+containerId+" has moved. Logged in transaction "+txHash);
+            sms.send();
+        }
+    }
+}
