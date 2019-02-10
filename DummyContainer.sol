@@ -9,11 +9,11 @@ contract DummyContainer {
     event DoorsOpened();
     event DoorsClosed();
 	
-	constructor() {
-		_id = 666;
-		_doorsOpen = false;
-		_owner = tx.origin;
-	}
+    constructor() {
+        _id = 666;
+        _doorsOpen = false;
+        _owner = tx.origin;
+    }
 
     modifier onlyOwner() {
         require(tx.origin == _owner); // Do not use tx.origin in production code: https://github.com/ethereum/solidity/issues/683
